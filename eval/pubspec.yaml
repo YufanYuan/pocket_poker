@@ -1,0 +1,5 @@
+name: poker_eval
+description: Headless evaluation harness for the Poker AI decision providers.
+publish_to: none
+environment:
+  sdk: ^3.11.0
