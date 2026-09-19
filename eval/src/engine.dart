@@ -11,6 +11,7 @@ library;
 export '../../lib/src/ai/ai_decision_provider.dart';
 export '../../lib/src/ai/ai_prompt_builder.dart';
 export '../../lib/src/ai/heuristic_ai_decision_provider.dart';
+export '../../lib/src/ai/poker_features.dart';
 export '../../lib/src/domain/card.dart';
 export '../../lib/src/domain/deck.dart';
 export '../../lib/src/domain/hand_evaluator.dart';

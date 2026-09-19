@@ -11,9 +11,9 @@ needs only the Dart SDK, not Flutter. Nothing here touches the Flutter UI.
 
 | Path | Purpose |
 |---|---|
-| `src/features.dart` | Engine-computed facts: hand class, draws/outs, Monte Carlo equity, pot odds, position, SPR, legal size presets. |
+| `src/features.dart` | Re-exports `lib/src/ai/poker_features.dart`, the engine-computed facts the app itself puts in the prompt: hand class, draws/outs, Monte Carlo equity, pot odds, position, SPR, legal size presets. |
 | `src/reference_policy.dart` | Equity-driven rule policy. Grades every legal action (`best` / `ok` / `mistake` / `blunder`) and flags oversized bets. |
-| `src/prompt_variants.dart` | Named prompt treatments: `baseline`, `compact`, `facts`, `facts_compact`, `facts_guided`. |
+| `src/prompt_variants.dart` | Named prompt treatments, each an `AiPromptOptions` combination built by the app's own prompt builder: `baseline` (original prompt), `compact`, `facts`, `facts_compact`, `facts_guided`, `facts_guided_v2`, and `app` (whatever the app ships now). |
 | `src/llm_provider.dart` | OpenAI-compatible client (LiteLLM, OpenRouter) with strict parse, optional amount clamping and retries, token/latency capture. |
 | `src/scenario.dart` | Scenario bank model and stratified generator. |
 | `src/arena.dart` | Duplicate match runner: every policy plays the same seeded cards from every seat. |
@@ -189,6 +189,10 @@ the heuristic bot in the app.
 
 ## Adding a variant
 
-Add an entry to `PromptVariant.all` in `src/prompt_variants.dart`. A variant
-only changes the prompt text; keep parsing knobs (`--clamp`, `--retries`) as
-flags so their effect stays measurable on its own.
+Add an `AiPromptOptions` field or `AiPromptGuide` value in
+`lib/src/ai/ai_prompt_builder.dart`, then an entry to `PromptVariant.all` in
+`src/prompt_variants.dart`. A variant only changes the prompt text; keep
+parsing knobs (`--clamp`, `--retries`) as flags so their effect stays
+measurable on its own. After changing the app default, rerun the `app`
+variant; it scored 75.4% best / 7.1% mistake+blunder, matching
+`facts_guided_v2`.

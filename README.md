@@ -50,6 +50,23 @@ Official references:
 - https://ai.google.dev/edge/litert/genai/overview
 - https://ai.google.dev/edge/litert-lm
 
+## Decision prompt
+
+`buildAiDecisionPrompt` in `lib/src/ai/ai_prompt_builder.dart` builds the user
+prompt from `AiPromptOptions`. The shipped default is a compact style block,
+an engine-computed facts section from `lib/src/ai/poker_features.dart` (hand
+class, draws, Monte Carlo equity, pot odds, position, SPR, legal size
+presets) and an ordered decision guide. On the 240-spot eval bank this cut
+deepseek-flash's mistake+blunder rate from 16% to 7% at no latency cost; see
+`eval/README.md` for the measurements and `AiPromptOptions.legacy()` for the
+original prompt. Feature extraction takes about 40 ms per decision on a
+laptop (600 Monte Carlo rollouts).
+
+The OpenRouter provider waits 15 seconds before falling back to the
+deterministic bot. Measured latency is about 1.5 s per decision on the
+DeepSeek API and 8-13 s through OpenRouter, so the previous 8 s timeout fell
+back to the heuristic bot most of the time.
+
 ## OpenRouter
 
 The setup screen can switch AI decisions from local Gemma to OpenRouter and

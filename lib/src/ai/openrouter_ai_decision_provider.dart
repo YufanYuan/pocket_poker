@@ -65,7 +65,7 @@ class OpenRouterAiDecisionProvider implements AiDecisionProvider {
     Uri? endpoint,
     OpenRouterPost? post,
     AiDecisionProvider fallback = const HeuristicAiDecisionProvider(),
-    this.timeout = const Duration(seconds: 8),
+    this.timeout = const Duration(seconds: 15),
   }) : _apiKey = apiKey?.trim().isNotEmpty == true
            ? apiKey!
            : OpenRouterConfig.apiKeyFromEnvironment(),

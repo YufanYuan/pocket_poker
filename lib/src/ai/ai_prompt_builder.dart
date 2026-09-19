@@ -3,6 +3,74 @@ import 'dart:convert';
 import '../domain/models.dart';
 import '../domain/money.dart';
 import 'ai_decision_provider.dart';
+import 'poker_features.dart';
+
+/// Which decision guide, if any, follows the engine facts in the user prompt.
+enum AiPromptGuide {
+  none,
+
+  /// Equity and price thresholds per situation.
+  thresholds,
+
+  /// Ordered rules: price check, commitment, then value/bluff guidance.
+  /// Measured best on bank_v1 with deepseek-flash (see eval/README.md).
+  ordered,
+}
+
+/// Controls how much help the user prompt gives the model.
+///
+/// The default is what the app ships. The eval harness builds the other
+/// combinations so their effect can be measured in isolation.
+class AiPromptOptions {
+  const AiPromptOptions({
+    this.compactStyle = true,
+    this.includeFacts = true,
+    this.guide = AiPromptGuide.ordered,
+  });
+
+  /// The original prompt: full style guide, no engine facts, no guide.
+  const AiPromptOptions.legacy()
+    : compactStyle = false,
+      includeFacts = false,
+      guide = AiPromptGuide.none;
+
+  /// Persona line plus four style numbers instead of the full style guide.
+  final bool compactStyle;
+
+  /// Engine-computed facts: hand class, draws, equity, price, SPR, presets.
+  final bool includeFacts;
+
+  final AiPromptGuide guide;
+}
+
+String aiDecisionGuideText(AiPromptGuide guide) => switch (guide) {
+  AiPromptGuide.none => '',
+  AiPromptGuide.thresholds => _guideThresholds,
+  AiPromptGuide.ordered => _guideOrdered,
+};
+
+const String _guideThresholds = '''
+## Decision guide (apply after reading the facts)
+
+- Facing a bet: fold when your equity is clearly below the pot odds and you hold no strong draw; call when equity beats the price; raise with very strong hands (about 70%+ equity) or strong draws that can also make opponents fold.
+- No bet pending: bet 50-75% of the pot with 60%+ equity or to protect a vulnerable made hand; check medium-strength hands; bluff only against one or two opponents and with some equity.
+- Preflop: open-raise 2.5-3 big blinds with strong hands, 3-bet premium hands, fold weak offsuit hands to raises, and never call large raises with junk.
+- Do not bet or raise more than the pot unless the stack-to-pot ratio is under 2 or you hold a very strong hand.
+- The amount is your total for this betting round. Pick one of the listed presets unless you have a precise reason.''';
+
+const String _guideOrdered = '''
+## Decision guide (apply after reading the facts)
+
+Decide in this order:
+
+1. Price check. Compare the equity number with the pot odds number. If equity is above pot odds, folding is a mistake; the cheaper the call relative to the pot, the worse a fold is. Facing a bet that costs under 20% of the pot, fold only with no pair, no draw and under 20% equity.
+2. Commitment. If calling leaves you with less than the pot behind, you are committed: call or move all-in with any equity above the price, and never fold a made hand or a strong draw.
+3. Facing a bet with a strong hand (about 70%+ equity): raise for value. With a draw or a medium hand that beats the price: call; raise only when opponents can still fold.
+4. No bet pending: bet 50-75% of the pot with 60%+ equity or to protect a vulnerable made hand. Check medium and weak hands. Do not bluff into three or more opponents. Never move all-in with no pair and no strong draw; low stack-to-pot ratio makes a bluff worse, not better, because nobody folds.
+5. Preflop: open-raise 2.5-3 big blinds with strong hands, 3-bet premium hands, fold weak offsuit hands to raises, and never call large raises with junk. Suited broadways and pairs call raises when the price is under a third of the pot.
+6. Style only shifts close decisions. It never turns a clear call into a fold or a clear check into an all-in.
+
+The amount is your total for this betting round. Pick one of the listed presets unless you have a precise reason.''';
 
 String buildAiDecisionSystemPrompt() {
   return '''
@@ -73,7 +141,11 @@ Map<String, Object> buildAiDecisionPayload(AiDecisionRequest request) {
   };
 }
 
-String buildAiDecisionPrompt(AiDecisionRequest request) {
+String buildAiDecisionPrompt(
+  AiDecisionRequest request, {
+  AiPromptOptions options = const AiPromptOptions(),
+  PokerFeatures? features,
+}) {
   final AiVisibleSnapshot state = request.snapshot;
   final AiProfile style = request.profile;
   final StringBuffer buffer = StringBuffer()
@@ -85,38 +157,13 @@ String buildAiDecisionPrompt(AiDecisionRequest request) {
     ..writeln(
       'First produce a concise public decision summary in `thinking`, then call `choose_poker_action`.',
     )
-    ..writeln()
-    ..writeln('## Style')
-    ..writeln()
-    ..writeln('- ID: ${style.id}')
-    ..writeln('- Name: ${style.name}')
-    ..writeln('- Persona: ${style.persona}')
-    ..writeln('- Tightness: ${style.tightness}')
-    ..writeln('- Aggression: ${style.aggression}')
-    ..writeln('- Bluff frequency: ${style.bluffFrequency}')
-    ..writeln('- Call tolerance: ${style.callTolerance}')
-    ..writeln('- Risk appetite: ${style.riskAppetite}')
-    ..writeln('- Tilt resistance: ${style.tiltResistance}')
-    ..writeln()
-    ..writeln('### Concepts');
-  for (final MapEntry<String, String> concept in style.styleConcepts.entries) {
-    buffer.writeln('- ${_title(concept.key)}: ${concept.value}');
+    ..writeln();
+  if (options.compactStyle) {
+    _writeCompactStyle(buffer, style);
+  } else {
+    _writeFullStyle(buffer, style);
   }
   buffer
-    ..writeln()
-    ..writeln('### Tendencies');
-  for (final String tendency in style.tendencies) {
-    buffer.writeln('- $tendency');
-  }
-  buffer
-    ..writeln()
-    ..writeln('### Street strategy');
-  for (final MapEntry<String, List<String>> street
-      in style.streetStrategy.entries) {
-    buffer.writeln('- ${_title(street.key)}: ${street.value.join(' ')}');
-  }
-  buffer
-    ..writeln()
     ..writeln('## Current visible state')
     ..writeln()
     ..writeln('- Hand: ${state.handNumber}')
@@ -158,8 +205,21 @@ String buildAiDecisionPrompt(AiDecisionRequest request) {
       buffer.writeln('- $action');
     }
   }
+  buffer.writeln();
+  if (options.includeFacts) {
+    final PokerFeatures facts =
+        features ?? FeatureExtractor().extract(state, request.legalActions);
+    buffer
+      ..writeln(facts.toPromptSection(pot: state.pot, toCall: state.toCall))
+      ..writeln();
+    final String guide = aiDecisionGuideText(options.guide);
+    if (guide.isNotEmpty) {
+      buffer
+        ..writeln(guide)
+        ..writeln();
+    }
+  }
   buffer
-    ..writeln()
     ..writeln('## Action space')
     ..writeln();
   buffer
@@ -205,6 +265,55 @@ String buildAiDecisionPrompt(AiDecisionRequest request) {
       '- Follow the style persona, concepts, tendencies, and street strategy so different AI seats make different choices.',
     );
   return buffer.toString().trimRight();
+}
+
+void _writeCompactStyle(StringBuffer buffer, AiProfile style) {
+  buffer
+    ..writeln('## Style')
+    ..writeln()
+    ..writeln('- Persona: ${style.persona}')
+    ..writeln(
+      '- Tightness ${style.tightness}/100, aggression ${style.aggression}/100, '
+      'bluff frequency ${style.bluffFrequency}/100, call tolerance ${style.callTolerance}/100.',
+    )
+    ..writeln(
+      '- Style shifts frequencies at the margin; it never overrides equity, price, or hand strength.',
+    )
+    ..writeln();
+}
+
+void _writeFullStyle(StringBuffer buffer, AiProfile style) {
+  buffer
+    ..writeln('## Style')
+    ..writeln()
+    ..writeln('- ID: ${style.id}')
+    ..writeln('- Name: ${style.name}')
+    ..writeln('- Persona: ${style.persona}')
+    ..writeln('- Tightness: ${style.tightness}')
+    ..writeln('- Aggression: ${style.aggression}')
+    ..writeln('- Bluff frequency: ${style.bluffFrequency}')
+    ..writeln('- Call tolerance: ${style.callTolerance}')
+    ..writeln('- Risk appetite: ${style.riskAppetite}')
+    ..writeln('- Tilt resistance: ${style.tiltResistance}')
+    ..writeln()
+    ..writeln('### Concepts');
+  for (final MapEntry<String, String> concept in style.styleConcepts.entries) {
+    buffer.writeln('- ${_title(concept.key)}: ${concept.value}');
+  }
+  buffer
+    ..writeln()
+    ..writeln('### Tendencies');
+  for (final String tendency in style.tendencies) {
+    buffer.writeln('- $tendency');
+  }
+  buffer
+    ..writeln()
+    ..writeln('### Street strategy');
+  for (final MapEntry<String, List<String>> street
+      in style.streetStrategy.entries) {
+    buffer.writeln('- ${_title(street.key)}: ${street.value.join(' ')}');
+  }
+  buffer.writeln();
 }
 
 String _title(String value) {

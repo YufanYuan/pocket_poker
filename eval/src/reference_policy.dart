@@ -1,7 +1,6 @@
 import 'dart:math';
 
 import 'engine.dart';
-import 'features.dart';
 
 /// Coarse quality label for an action at a decision point.
 ///

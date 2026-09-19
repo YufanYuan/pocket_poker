@@ -78,6 +78,34 @@ void main() {
     expect(prompt.trimLeft(), isNot(startsWith('{')));
   });
 
+  test('AI decision prompt ships engine facts and the ordered guide', () {
+    final PokerGame game = PokerGame(config: config(), seed: 19);
+    final AiDecisionRequest request = AiDecisionRequest(
+      snapshot: game.visibleSnapshotFor(1),
+      profile: game.players[1].profile!,
+      legalActions: game.legalActionsForCurrentPlayer(),
+    );
+
+    final String shipped = buildAiDecisionPrompt(request);
+    expect(shipped, contains('## Engine-computed poker facts'));
+    expect(shipped, contains('Equity versus'));
+    expect(shipped, contains('Decide in this order:'));
+    expect(shipped, contains('- Persona:'));
+    expect(shipped, isNot(contains('### Street strategy')));
+    expect(
+      shipped.indexOf('## Engine-computed poker facts'),
+      lessThan(shipped.indexOf('## Action space')),
+    );
+
+    final String legacy = buildAiDecisionPrompt(
+      request,
+      options: const AiPromptOptions.legacy(),
+    );
+    expect(legacy, isNot(contains('## Engine-computed poker facts')));
+    expect(legacy, isNot(contains('## Decision guide')));
+    expect(legacy, contains('### Street strategy'));
+  });
+
   test('invalid model action json is rejected before reaching the engine', () {
     final List<LegalAction> legal = <LegalAction>[
       const LegalAction(type: PokerActionType.fold),

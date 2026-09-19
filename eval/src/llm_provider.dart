@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'engine.dart';
-import 'features.dart';
 import 'prompt_variants.dart';
 
 /// Connection settings for any OpenAI-compatible chat endpoint.

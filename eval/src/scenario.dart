@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:math';
 
 import 'engine.dart';
-import 'features.dart';
 import 'reference_policy.dart';
 import 'snapshot_codec.dart';
 
