@@ -137,6 +137,56 @@ Heads-up duplicate match, 200 hands x 2 rotations: reference beats heuristic
 by roughly 500 bb/100 (±320). The heuristic bot sizes bets by stack instead of
 pot and calls almost any price, so anything that falls back to it plays badly.
 
+## DeepSeek results (2026-09-19, bank_v1, official API, forced tool call, thinking off)
+
+Runs: `runs/deepseek_flash_strict.jsonl`, `runs/deepseek_flash_clamp.jsonl`.
+Every variant parsed at 100% (`usable`), so clamping and retries changed
+nothing for this model; the numbers below are the strict runs.
+
+| variant | best | ok | mistake | blunder | mistake+blunder | avg ms | in tok |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| baseline (app prompt as shipped) | 67.9% | 15.8% | 12.1% | 4.2% | 16.3% | 1603 | 2363 |
+| compact | 69.6% | 13.8% | 13.3% | 3.3% | 16.6% | 1382 | 1773 |
+| facts | 69.2% | 15.8% | 12.9% | 2.1% | 15.0% | 1319 | 2536 |
+| facts_compact | 70.8% | 14.2% | 12.9% | 2.1% | 15.0% | 1317 | 1945 |
+| facts_guided | 69.6% | 16.3% | 11.7% | 2.5% | 14.2% | 1339 | 2151 |
+| facts_guided_v2 | 75.4% | 17.9% | 5.4% | 1.3% | 6.7% | 1399 | 2305 |
+| heuristic (app fallback bot) | 46.3% | 20.8% | 21.3% | 11.7% | 33.0% | 0 | 0 |
+
+What the data says:
+
+- Engine facts halve blunders (4.2% to about 2%) and cost nothing in latency.
+  Shrinking the style guide saves 25% input tokens with no accuracy change.
+- The remaining errors under `facts_guided` were almost all folding to small
+  bets with equity above the price, folding when already committed, and
+  moving all-in with air at low SPR. `facts_guided_v2` states those three
+  rules explicitly and cuts mistake+blunder from 14.2% to 6.7%. Its action
+  mix stays sane (facing a bet: 108 folds / 29 calls / 12 raises or shoves,
+  versus 125 / 18 / 6 for baseline), so it is not a calling station.
+- Caveat: the grader is the equity-versus-pot-odds reference, so part of the
+  v2 gain is agreeing with the grader's thresholds. Spot checks of the
+  remaining "fold" mistakes include folds a range-aware player would make.
+
+Thinking mode (`runs/deepseek_flash_think_strict.jsonl`, `--thinking on
+--no-force-tool`): baseline 10.0% mistake+blunder, facts_guided_v2 4.6% with
+zero blunders, but average latency 10-12 s, p90 29 s, max 94 s, and 12-15x
+the output tokens. The app times out at 8 s, so thinking mode is not usable
+for live play; prompt context gives most of the gain at 1.3 s.
+
+Duplicate matches, 100 hands x 2 rotations, thinking off:
+
+| match | bb/100 | ±95% |
+|---|---:|---:|
+| llm:facts_guided_v2 vs reference | +85 | 117 |
+| llm:baseline vs reference | +65 | 97 |
+| llm:facts_guided_v2 vs heuristic | +499 | 398 |
+
+200 hands cannot separate the two prompts; both beat the reference and crush
+the heuristic. `runs/openrouter_v4_flash_strict.jsonl` is the same strict
+matrix through OpenRouter (`deepseek/deepseek-v4-flash`): same accuracy
+profile but 8-13 s per decision, which alone explains frequent fallbacks to
+the heuristic bot in the app.
+
 ## Adding a variant
 
 Add an entry to `PromptVariant.all` in `src/prompt_variants.dart`. A variant
