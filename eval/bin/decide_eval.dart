@@ -33,6 +33,7 @@ Future<void> main(List<String> argv) async {
     timeout: Duration(seconds: args.integer('timeout', 60)),
     useTools: !args.flag('no-tools'),
     forceTool: !args.flag('no-force-tool'),
+    thinking: _thinkingArg(args['thinking']),
     temperature: args['temperature'] == null ? null : args.real('temperature', 0),
     maxTokens: args['max-tokens'] == null ? null : args.integer('max-tokens', 0),
   );
@@ -175,3 +176,11 @@ Future<Map<String, Object?>> _evaluate(
 }
 
 String _slug(String s) => s.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_');
+
+/// `--thinking off|on` maps to the DeepSeek `thinking.type` field.
+String? _thinkingArg(String? v) => switch (v) {
+  null => null,
+  'off' || 'disabled' || 'false' => 'disabled',
+  'on' || 'enabled' || 'true' => 'enabled',
+  _ => throw ArgumentError('--thinking expects on or off, got $v'),
+};

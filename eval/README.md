@@ -97,7 +97,11 @@ dart run bin/decide_eval.dart --base-url http://localhost:4010/v1 --api-key none
 
 Other useful flags: `--limit N`, `--tags flop/facing,turn/facing`, `--fresh`
 (discard cached records for the output file), `--no-tools` / `--no-force-tool`
-for endpoints without function calling, `--temperature`, `--timeout`.
+for endpoints without function calling, `--temperature`, `--timeout`,
+`--thinking off|on` (sends DeepSeek's `thinking.type`; the official API rejects
+a forced tool call while thinking is on, so use `--thinking off` there to keep
+the app's forced-tool contract, or `--thinking on --no-force-tool` to measure
+the reasoning mode).
 
 ## Metrics
 

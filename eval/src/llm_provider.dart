@@ -21,6 +21,7 @@ class LlmConfig {
     this.forceTool = true,
     this.temperature,
     this.maxTokens,
+    this.thinking,
   });
 
   final String baseUrl;
@@ -31,6 +32,11 @@ class LlmConfig {
   final bool forceTool;
   final double? temperature;
   final int? maxTokens;
+
+  /// DeepSeek-style reasoning switch: `enabled` or `disabled`. Null sends
+  /// nothing. The official DeepSeek API rejects a forced `tool_choice` while
+  /// thinking is on, so pass `disabled` to keep the app's forced-tool contract.
+  final String? thinking;
 
   static String envBaseUrl() =>
       Platform.environment['POKER_EVAL_BASE_URL'] ??
@@ -95,6 +101,8 @@ class LlmClient {
       'stream': false,
       if (config.temperature != null) 'temperature': config.temperature,
       if (config.maxTokens != null) 'max_tokens': config.maxTokens,
+      if (config.thinking != null)
+        'thinking': <String, String>{'type': config.thinking!},
       if (config.useTools) 'tools': <Object>[_toolDefinition(legalActions)],
       if (config.useTools && config.forceTool)
         'tool_choice': <String, Object>{

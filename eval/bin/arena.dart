@@ -22,6 +22,7 @@ Future<void> main(List<String> argv) async {
     timeout: Duration(seconds: args.integer('timeout', 60)),
     useTools: !args.flag('no-tools'),
     forceTool: !args.flag('no-force-tool'),
+    thinking: _thinkingArg(args['thinking']),
   );
   final List<SeatPolicy> policies = <SeatPolicy>[];
   for (int i = 0; i < specs.length; i += 1) {
@@ -61,3 +62,11 @@ Future<void> main(List<String> argv) async {
     ..writeln()
     ..writeln(result.report());
 }
+
+/// `--thinking off|on` maps to the DeepSeek `thinking.type` field.
+String? _thinkingArg(String? v) => switch (v) {
+  null => null,
+  'off' || 'disabled' || 'false' => 'disabled',
+  'on' || 'enabled' || 'true' => 'enabled',
+  _ => throw ArgumentError('--thinking expects on or off, got $v'),
+};

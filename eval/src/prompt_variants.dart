@@ -43,6 +43,11 @@ class PromptVariant {
       'Compact style, engine facts, and a short decision guide with thresholds.',
       _factsGuided,
     ),
+    PromptVariant(
+      'facts_guided_v2',
+      'facts_guided plus explicit rules against over-folding to small bets and shoving air at low SPR.',
+      _factsGuidedV2,
+    ),
   ];
 
   static PromptVariant byName(String name) =>
@@ -66,6 +71,14 @@ class PromptVariant {
         r,
         f!,
         extra: _guide,
+      );
+
+  static String _factsGuidedV2(AiDecisionRequest r, PokerFeatures? f) =>
+      _insertFacts(
+        _shrinkStyle(buildAiDecisionPrompt(r), r.profile),
+        r,
+        f!,
+        extra: _guideV2,
       );
 
   static const String _styleStart = '## Style';
@@ -111,4 +124,18 @@ class PromptVariant {
 - Preflop: open-raise 2.5-3 big blinds with strong hands, 3-bet premium hands, fold weak offsuit hands to raises, and never call large raises with junk.
 - Do not bet or raise more than the pot unless the stack-to-pot ratio is under 2 or you hold a very strong hand.
 - The amount is your total for this betting round. Pick one of the listed presets unless you have a precise reason.''';
+
+  static const String _guideV2 = '''
+## Decision guide (apply after reading the facts)
+
+Decide in this order:
+
+1. Price check. Compare the equity number with the pot odds number. If equity is above pot odds, folding is a mistake; the cheaper the call relative to the pot, the worse a fold is. Facing a bet that costs under 20% of the pot, fold only with no pair, no draw and under 20% equity.
+2. Commitment. If calling leaves you with less than the pot behind, you are committed: call or move all-in with any equity above the price, and never fold a made hand or a strong draw.
+3. Facing a bet with a strong hand (about 70%+ equity): raise for value. With a draw or a medium hand that beats the price: call; raise only when opponents can still fold.
+4. No bet pending: bet 50-75% of the pot with 60%+ equity or to protect a vulnerable made hand. Check medium and weak hands. Do not bluff into three or more opponents. Never move all-in with no pair and no strong draw; low stack-to-pot ratio makes a bluff worse, not better, because nobody folds.
+5. Preflop: open-raise 2.5-3 big blinds with strong hands, 3-bet premium hands, fold weak offsuit hands to raises, and never call large raises with junk. Suited broadways and pairs call raises when the price is under a third of the pot.
+6. Style only shifts close decisions. It never turns a clear call into a fold or a clear check into an all-in.
+
+The amount is your total for this betting round. Pick one of the listed presets unless you have a precise reason.''';
 }
